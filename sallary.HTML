@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نرم‌افزار صدور فیش حقوقی - زودرسان کیهان کریمان</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: #111827;
+        }
+        .form-input, .form-select {
+            background-color: #374151; border: 1px solid #4b5563; color: #f3f4f6;
+            border-radius: 0.5rem; padding: 0.75rem 1rem; transition: border-color 0.2s; width: 100%;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #1e40af;
+        }
+        .btn {
+            border-radius: 0.5rem; padding: 0.75rem 1.5rem; font-weight: 600;
+            transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .btn-primary { background-color: #3b82f6; color: white; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: #4b5563; color: white; }
+        .btn-secondary:hover { background-color: #6b7280; }
+        .payslip-table td, .payslip-table th { font-family: 'Vazirmatn', sans-serif; }
+
+        #loader-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); z-index: 9999;
+        }
+        .loader {
+            border: 8px solid #f3f3f3; border-top: 8px solid #3b82f6; border-radius: 50%;
+            width: 60px; height: 60px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Styles for PDF generation to ensure high fidelity */
+        .payslip-for-pdf {
+            background-color: white !important; color: black !important;
+        }
+        .payslip-for-pdf * {
+            color: black !important;
+            border-color: #6b7280 !important;
+        }
+        .payslip-for-pdf .text-blue-400 { color: #3b82f6 !important; }
+        .payslip-for-pdf .text-green-400 { color: #22c55e !important; }
+        .payslip-for-pdf .text-red-400 { color: #ef4444 !important; }
+        .payslip-for-pdf .text-blue-300 { color: #60a5fa !important; }
+        .payslip-for-pdf .bg-gray-900\/50 { background-color: #f3f4f6 !important; }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div id="loader-overlay" class="hidden flex justify-center items-center">
+        <div class="text-center">
+            <div class="loader mx-auto"></div>
+            <p class="text-white mt-4 font-semibold">در حال تولید PDF...</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 lg:p-8">
+        
+        <!-- Control Panel -->
+        <div class="no-print bg-gray-800 p-6 rounded-xl shadow-lg mb-8 border border-gray-700">
+            <h1 class="text-2xl font-bold mb-2 text-white">پنل صدور فیش حقوقی</h1>
+            <p class="text-gray-400 mb-6">اطلاعات زیر را برای تولید فیش حقوقی وارد کنید.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Employee Info -->
+                <div><label for="full-name" class="block mb-2 text-sm font-medium">نام و نام خانوادگی</label><input type="text" id="full-name" class="form-input" placeholder="مثال: امیرحسین حاج محمدی"></div>
+                <div><label for="job-title" class="block mb-2 text-sm font-medium">سمت کارمند</label><input type="text" id="job-title" class="form-input" placeholder="مثال: کارشناس فروش"></div>
+                <div><label for="insurance-number" class="block mb-2 text-sm font-medium">شماره بیمه</label><input type="text" id="insurance-number" class="form-input" placeholder="مثال: ۱۲۳۴۵۶۷۸۹۰"></div>
+                <div><label for="net-salary" class="block mb-2 text-sm font-medium">مبلغ خالص پرداختی (ریال)</label><input type="text" id="net-salary" class="form-input" placeholder="مثال: 150,000,000" onkeyup="formatNumber(this)"></div>
+                
+                <!-- Work Details -->
+                <div><label for="work-days" class="block mb-2 text-sm font-medium">تعداد روز کارکرد</label><input type="number" id="work-days" class="form-input" value="30"></div>
+                <div><label for="children-count" class="block mb-2 text-sm font-medium">تعداد فرزندان</label><input type="number" id="children-count" class="form-input" value="0" min="0"></div>
+                <div><label for="is-married" class="block mb-2 text-sm font-medium">وضعیت تاهل</label><select id="is-married" class="form-select"><option value="no">مجرد</option><option value="yes">متاهل</option></select></div>
+                <div><label for="mission-allowance" class="block mb-2 text-sm font-medium">حق ماموریت (ریال)</label><input type="text" id="mission-allowance" class="form-input" value="0" onkeyup="formatNumber(this)"></div>
+
+                <!-- New Deductions -->
+                <div><label for="advance-payment" class="block mb-2 text-sm font-medium">مساعده (ریال)</label><input type="text" id="advance-payment" class="form-input" value="0" onkeyup="formatNumber(this)"></div>
+                <div><label for="company-loan" class="block mb-2 text-sm font-medium">وام شرکت (ریال)</label><input type="text" id="company-loan" class="form-input" value="0" onkeyup="formatNumber(this)"></div>
+                <div><label for="accounting-liability" class="block mb-2 text-sm font-medium">تعهد حسابداری (ریال)</label><input type="text" id="accounting-liability" class="form-input" value="0" onkeyup="formatNumber(this)"></div>
+                
+                <!-- General Info -->
+                <div class="flex items-end"><label for="logo-upload" class="btn btn-secondary w-full">بارگذاری لوگو</label><input type="file" id="logo-upload" class="hidden" accept="image/*"></div>
+                <div class="lg:col-span-4"><label for="month" class="block mb-2 text-sm font-medium">انتخاب ماه</label><div class="flex gap-2"><select id="year" class="form-select w-1/2"><option value="1403">1403</option><option value="1404">1404</option></select><select id="month" class="form-select w-1/2"><option value="فروردین">فروردین</option><option value="اردیبهشت">اردیبهشت</option><option value="خرداد">خرداد</option><option value="تیر">تیر</option><option value="مرداد">مرداد</option><option value="شهریور">شهریور</option><option value="مهر">مهر</option><option value="آبان">آبان</option><option value="آذر">آذر</option><option value="دی">دی</option><option value="بهمن">بهمن</option><option value="اسفند">اسفند</option></select></div></div>
+            </div>
+
+            <div class="mt-8 flex flex-col sm:flex-row items-center gap-4">
+                <button id="calculate-btn" class="btn btn-primary w-full sm:w-auto">محاسبه و صدور فیش</button>
+                <div id="print-buttons" class="hidden flex-col sm:flex-row items-center gap-4">
+                     <button id="pdf-a4-btn" class="btn btn-secondary w-full sm:w-auto">دانلود PDF (A4)</button>
+                     <button id="pdf-a5-btn" class="btn btn-secondary w-full sm:w-auto">دانلود PDF (A5)</button>
+                </div>
+            </div>
+             <div id="error-message" class="mt-4 text-red-400 font-semibold hidden"></div>
+        </div>
+
+        <!-- Payslip Preview -->
+        <div id="payslip-container">
+             <div id="payslip-output" class="hidden payslip bg-gray-800 rounded-xl p-8 border border-gray-700">
+                <div id="payslip-header" class="flex justify-between items-start pb-4 border-b-2">
+                    <div class="text-right">
+                        <h2 class="text-3xl font-bold">فیش حقوقی</h2>
+                        <h3 class="text-xl font-semibold text-blue-400">شرکت زودرسان کیهان کریمان</h3>
+                        <p id="payslip-period" class="mt-2"></p>
+                    </div>
+                    <div><img id="payslip-logo" src="https://placehold.co/120x120/374151/f3f4f6?text=Logo" alt="Company Logo" class="h-24 w-36 object-contain rounded-md"></div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 my-6 text-sm">
+                    <p><span class="font-semibold text-gray-400">نام:</span> <span id="payslip-full-name" class="font-bold"></span></p>
+                    <p><span class="font-semibold text-gray-400">سمت:</span> <span id="payslip-job-title" class="font-bold"></span></p>
+                    <p><span class="font-semibold text-gray-400">شماره بیمه:</span> <span id="payslip-insurance-number" class="font-bold"></span></p>
+                    <p><span class="font-semibold text-gray-400">تاریخ صدور:</span> <span id="payslip-issue-date" class="font-bold"></span></p>
+                    <p><span class="font-semibold text-gray-400">شماره فیش:</span> <span id="payslip-number" class="font-bold"></span></p>
+                    <p><span class="font-semibold text-gray-400">روز کارکرد:</span> <span id="payslip-work-days" class="font-bold"></span></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h4 class="text-xl font-bold mb-4 pb-2 border-b text-green-400">مزایا و حقوق</h4>
+                        <table class="w-full payslip-table">
+                            <tbody>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">حقوق پایه</td><td id="base-salary" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">حق مسکن</td><td id="housing-allowance" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">بن کارگری</td><td id="food-allowance" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">حق اولاد</td><td id="child-allowance" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">حق تاهل</td><td id="marital-allowance" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">حق ماموریت</td><td id="mission-allowance-display" class="py-2.5 text-right">0</td></tr>
+                            </tbody>
+                            <tfoot class="border-t-2"><tr class="font-bold text-lg"><td class="pt-3">جمع ناخالص</td><td id="total-gross" class="pt-3 text-right">0</td></tr></tfoot>
+                        </table>
+                    </div>
+                    <div>
+                        <h4 class="text-xl font-bold mb-4 pb-2 border-b text-red-400">کسورات</h4>
+                        <table class="w-full payslip-table">
+                            <tbody>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">بیمه (سهم کارمند)</td><td id="insurance-deduction" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">مالیات بر درآمد</td><td id="tax-deduction" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">مساعده</td><td id="advance-display" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">وام شرکت</td><td id="loan-display" class="py-2.5 text-right">0</td></tr>
+                                <tr class="border-b"><td class="py-2.5 text-gray-300">تعهد حسابداری</td><td id="liability-display" class="py-2.5 text-right">0</td></tr>
+                            </tbody>
+                            <tfoot class="border-t-2"><tr class="font-bold text-lg"><td class="pt-3">جمع کسورات</td><td id="total-deductions" class="pt-3 text-right">0</td></tr></tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="payslip-footer" class="mt-8 pt-6 border-t-2 bg-gray-900/50 rounded-lg p-6">
+                    <div class="flex justify-between items-center">
+                        <div class="text-2xl font-bold text-blue-300">خالص پرداختی (ریال)</div>
+                        <div id="final-net-salary" class="text-3xl font-bold">0</div>
+                    </div>
+                    <div class="mt-4 text-right text-gray-300">
+                        <span class="font-semibold">به حروف:</span>
+                        <span id="net-salary-words"></span>
+                    </div>
+                </div>
+             </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const loaderOverlay = document.getElementById('loader-overlay');
+        const fullNameInput = document.getElementById('full-name');
+        const jobTitleInput = document.getElementById('job-title');
+        const insuranceNumberInput = document.getElementById('insurance-number');
+        const netSalaryInput = document.getElementById('net-salary');
+        const workDaysInput = document.getElementById('work-days');
+        const childrenCountInput = document.getElementById('children-count');
+        const isMarriedSelect = document.getElementById('is-married');
+        const missionAllowanceInput = document.getElementById('mission-allowance');
+        const advancePaymentInput = document.getElementById('advance-payment');
+        const companyLoanInput = document.getElementById('company-loan');
+        const accountingLiabilityInput = document.getElementById('accounting-liability');
+        const yearSelect = document.getElementById('year');
+        const monthSelect = document.getElementById('month');
+        const logoUploadInput = document.getElementById('logo-upload');
+        const calculateBtn = document.getElementById('calculate-btn');
+        const pdfA4Btn = document.getElementById('pdf-a4-btn');
+        const pdfA5Btn = document.getElementById('pdf-a5-btn');
+        const printButtonsContainer = document.getElementById('print-buttons');
+        const errorMessageDiv = document.getElementById('error-message');
+        const payslipOutput = document.getElementById('payslip-output');
+
+        // --- Constants for 1403 ---
+        const INSURANCE_RATE = 0.07;
+        const HOUSING_ALLOWANCE_FULL = 9000000;
+        const FOOD_ALLOWANCE_FULL = 14000000;
+        const CHILD_ALLOWANCE_PER_CHILD = 7166184;
+        const MARITAL_ALLOWANCE_FULL = 5000000;
+        const TAX_EXEMPTION_MONTHLY = 120000000;
+        const INSURANCE_CEILING_MONTHLY = 7 * 71661840;
+        const TAX_BRACKETS = [
+            { limit: 165000000, rate: 0.10 }, { limit: 270000000, rate: 0.15 },
+            { limit: 400000000, rate: 0.20 }, { limit: Infinity,  rate: 0.30 }
+        ];
+
+        // --- Utility Functions ---
+        function formatNumber(input) {
+            let value = input.value.replace(/,/g, '');
+            input.value = !isNaN(value) && value.length > 0 ? parseInt(value, 10).toLocaleString('en-US') : '';
+        }
+        function parseFormattedNumber(value) { return parseInt(String(value).replace(/,/g, ''), 10) || 0; }
+        function toPersianNumber(n) { return new Intl.NumberFormat('fa-IR', { useGrouping: true }).format(n); }
+        function toPersianDigits(str) { return String(str).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]); }
+        function showError(message) { errorMessageDiv.textContent = message; errorMessageDiv.classList.remove('hidden'); }
+        function hideError() { errorMessageDiv.classList.add('hidden'); }
+        function showLoader() { loaderOverlay.classList.remove('hidden'); }
+        function hideLoader() { loaderOverlay.classList.add('hidden'); }
+
+        // --- Number to Persian Words ---
+        function numberToWords(num) {
+            if (num === 0) return 'صفر';
+            const ones = ['', 'یک', 'دو', 'سه', 'چهار', 'پنج', 'شش', 'هفت', 'هشت', 'نه'];
+            const teens = ['ده', 'یازده', 'دوازده', 'سیزده', 'چهارده', 'پانزده', 'شانزده', 'هفده', 'هجده', 'نوزده'];
+            const tens = ['', '', 'بیست', 'سی', 'چهل', 'پنجاه', 'شصت', 'هفتاد', 'هشتاد', 'نود'];
+            const hundreds = ['', 'یکصد', 'دویست', 'سیصد', 'چهارصد', 'پانصد', 'ششصد', 'هفتصد', 'هشتصد', 'نهصد'];
+            const scales = ['', 'هزار', 'میلیون', 'میلیارد'];
+
+            let numStr = String(num);
+            let groups = [];
+            while (numStr.length > 0) {
+                groups.push(numStr.substring(Math.max(0, numStr.length - 3)));
+                numStr = numStr.substring(0, numStr.length - 3);
+            }
+
+            let words = [];
+            for (let i = 0; i < groups.length; i++) {
+                let n = parseInt(groups[i], 10);
+                if (n === 0) continue;
+                let h = Math.floor(n / 100);
+                let t = Math.floor((n % 100) / 10);
+                let o = n % 10;
+                let groupWords = [];
+                if (h > 0) groupWords.push(hundreds[h]);
+                if (t === 1) {
+                    groupWords.push(teens[o]);
+                } else {
+                    if (t > 1) groupWords.push(tens[t]);
+                    if (o > 0) groupWords.push(ones[o]);
+                }
+                if (groupWords.length > 0) {
+                    words.unshift(groupWords.join(' و ') + (i > 0 ? ' ' + scales[i] : ''));
+                }
+            }
+            return words.join(' و ');
+        }
+        
+        // --- Core Calculation Logic ---
+        function calculateTax(taxableIncome) {
+            if (taxableIncome <= TAX_EXEMPTION_MONTHLY) return 0;
+            let tax = 0, incomeOverExemption = taxableIncome - TAX_EXEMPTION_MONTHLY, previousLimit = 0;
+            for (const bracket of TAX_BRACKETS) {
+                const bracketLimit = bracket.limit - previousLimit;
+                if (incomeOverExemption > 0) {
+                    const taxableInBracket = Math.min(incomeOverExemption, bracketLimit);
+                    tax += taxableInBracket * bracket.rate;
+                    incomeOverExemption -= taxableInBracket;
+                    previousLimit = bracket.limit;
+                } else break;
+            }
+            return Math.round(tax);
+        }
+
+        function calculateInsurance(grossSalary) {
+            const insurableSalary = Math.min(grossSalary, INSURANCE_CEILING_MONTHLY);
+            return Math.round(insurableSalary * INSURANCE_RATE);
+        }
+        
+        function reverseCalculate(inputs) {
+            const { targetNet, childrenCount, isMarried, mission, advance, loan, liability, workDays } = inputs;
+            const workDaysRatio = (workDays > 0 && workDays <= 31) ? workDays / 30 : 1;
+            
+            const childAllowance = childrenCount * CHILD_ALLOWANCE_PER_CHILD * workDaysRatio;
+            const maritalAllowance = (isMarried === 'yes' ? MARITAL_ALLOWANCE_FULL : 0) * workDaysRatio;
+            
+            const otherDeductions = advance + loan + liability;
+            const nonTaxableAllowances = childAllowance + maritalAllowance + mission;
+
+            const targetNetForCalculation = targetNet - nonTaxableAllowances + otherDeductions;
+
+            if (targetNetForCalculation < 0) return null;
+
+            let grossGuess = targetNetForCalculation * 1.15;
+            for (let i = 0; i < 100; i++) {
+                const insurance = calculateInsurance(grossGuess);
+                const tax = calculateTax(grossGuess - insurance);
+                const calculatedNet = grossGuess - insurance - tax;
+                const difference = calculatedNet - targetNetForCalculation;
+
+                if (Math.abs(difference) < 100) {
+                    const housing = HOUSING_ALLOWANCE_FULL * workDaysRatio;
+                    const food = FOOD_ALLOWANCE_FULL * workDaysRatio;
+                    const baseSalary = grossGuess - housing - food;
+                    const totalGross = grossGuess + nonTaxableAllowances;
+                    const totalStatutoryDeductions = insurance + tax;
+                    const finalNet = totalGross - totalStatutoryDeductions - otherDeductions;
+
+                    return {
+                        baseSalary: Math.round(baseSalary), housing: Math.round(housing), food: Math.round(food),
+                        childAllowance: Math.round(childAllowance), maritalAllowance: Math.round(maritalAllowance),
+                        mission, totalGross: Math.round(totalGross), insurance, tax,
+                        advance, loan, liability,
+                        totalDeductions: totalStatutoryDeductions + otherDeductions,
+                        net: Math.round(finalNet)
+                    };
+                }
+                grossGuess *= (calculatedNet > 0 ? (targetNetForCalculation / calculatedNet) : 1);
+            }
+            return null;
+        }
+
+        // --- UI Update Function ---
+        function updatePayslipUI(data) {
+            if (!data) {
+                showError('محاسبه با خطا مواجه شد. لطفاً مقادیر ورودی را بررسی کنید.');
+                payslipOutput.classList.add('hidden');
+                return;
+            }
+            
+            document.getElementById('payslip-period').textContent = `ماه: ${monthSelect.value} ${yearSelect.value}`;
+            document.getElementById('payslip-issue-date').textContent = toPersianDigits(new Intl.DateTimeFormat('fa-IR').format(new Date()));
+            document.getElementById('payslip-number').textContent = toPersianDigits(Math.floor(100000 + Math.random() * 900000));
+            document.getElementById('payslip-full-name').textContent = fullNameInput.value || 'نامشخص';
+            document.getElementById('payslip-job-title').textContent = jobTitleInput.value || 'نامشخص';
+            document.getElementById('payslip-insurance-number').textContent = toPersianDigits(insuranceNumberInput.value) || '---';
+            document.getElementById('payslip-work-days').textContent = toPersianDigits(workDaysInput.value);
+            
+            // Earnings
+            document.getElementById('base-salary').textContent = toPersianNumber(data.baseSalary);
+            document.getElementById('housing-allowance').textContent = toPersianNumber(data.housing);
+            document.getElementById('food-allowance').textContent = toPersianNumber(data.food);
+            document.getElementById('child-allowance').textContent = toPersianNumber(data.childAllowance);
+            document.getElementById('marital-allowance').textContent = toPersianNumber(data.maritalAllowance);
+            document.getElementById('mission-allowance-display').textContent = toPersianNumber(data.mission);
+            document.getElementById('total-gross').textContent = toPersianNumber(data.totalGross);
+
+            // Deductions
+            document.getElementById('insurance-deduction').textContent = toPersianNumber(data.insurance);
+            document.getElementById('tax-deduction').textContent = toPersianNumber(data.tax);
+            document.getElementById('advance-display').textContent = toPersianNumber(data.advance);
+            document.getElementById('loan-display').textContent = toPersianNumber(data.loan);
+            document.getElementById('liability-display').textContent = toPersianNumber(data.liability);
+            document.getElementById('total-deductions').textContent = toPersianNumber(data.totalDeductions);
+
+            // Footer
+            document.getElementById('final-net-salary').textContent = toPersianNumber(data.net);
+            document.getElementById('net-salary-words').textContent = `${numberToWords(data.net)} ریال`;
+
+            payslipOutput.classList.remove('hidden');
+            printButtonsContainer.classList.remove('hidden');
+            printButtonsContainer.classList.add('flex');
+        }
+
+        // --- PDF Generation ---
+        async function generatePdf(size) {
+            showLoader();
+            const { jsPDF } = window.jspdf;
+            const element = document.getElementById('payslip-output');
+            
+            element.classList.add('payslip-for-pdf');
+
+            try {
+                const canvas = await html2canvas(element, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: size });
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                const fileName = `payslip-${fullNameInput.value.replace(/ /g, '_') || 'employee'}-${monthSelect.value}.pdf`;
+                pdf.save(fileName);
+            } catch (error) {
+                console.error("Error generating PDF:", error);
+                showError("خطا در تولید PDF. لطفاً دوباره تلاش کنید.");
+            } finally {
+                element.classList.remove('payslip-for-pdf');
+                hideLoader();
+            }
+        }
+
+        // --- Event Listeners ---
+        calculateBtn.addEventListener('click', () => {
+            hideError();
+            const inputs = {
+                targetNet: parseFormattedNumber(netSalaryInput.value),
+                childrenCount: parseInt(childrenCountInput.value, 10),
+                isMarried: isMarriedSelect.value,
+                mission: parseFormattedNumber(missionAllowanceInput.value),
+                advance: parseFormattedNumber(advancePaymentInput.value),
+                loan: parseFormattedNumber(companyLoanInput.value),
+                liability: parseFormattedNumber(accountingLiabilityInput.value),
+                workDays: parseInt(workDaysInput.value, 10)
+            };
+            if (inputs.targetNet <= 0 || !fullNameInput.value || !jobTitleInput.value) {
+                showError('لطفاً نام، سمت و مبلغ خالص پرداختی را به درستی وارد کنید.');
+                return;
+            }
+            const result = reverseCalculate(inputs);
+            updatePayslipUI(result);
+        });
+
+        logoUploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => { document.getElementById('payslip-logo').src = e.target.result; };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        pdfA4Btn.addEventListener('click', () => generatePdf('a4'));
+        pdfA5Btn.addEventListener('click', () => generatePdf('a5'));
+        
+        // Set default date
+        const today = new Date();
+        const currentPersianMonthName = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { month: 'long' }).format(today);
+        const currentPersianYear = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric' }).format(today).split(' ')[0];
+        if (monthSelect.querySelector(`option[value='${currentPersianMonthName}']`)) monthSelect.value = currentPersianMonthName;
+        if (yearSelect.querySelector(`option[value='${currentPersianYear}']`)) yearSelect.value = currentPersianYear;
+    </script>
+</body>
+</html>
